@@ -2,7 +2,7 @@
 <!DOCTYPE modification SYSTEM "http://www.simplemachines.org/xml/modification">
 <modification xmlns="http://www.simplemachines.org/xml/modification" xmlns:smf="http://www.simplemachines.org/">
 	<id>nvcnvn:NChat</id>
-	<version>1.3.2</version>
+	<version>1.4.0</version>
 	<file name="$sourcedir/Admin.php">
 		<operation>
 			<search position="after"><![CDATA[						// Mod Authors for a "ADD AFTER" on this line. Ensure you end your change with a comma. For example:]]></search>
@@ -46,11 +46,12 @@ function nchatSettings($return_config = false)
 		array('select', 'nchat_sound', array($txt['nchat_disable_sound'], $txt['nchat_enable_sound'])),
 		array('select', 'nchat_censor', array($txt['nchat_disable_censor'], $txt['nchat_enable_censor'])),
 		array('select', 'nchat_smile', array($txt['nchat_disable_smileys'], $txt['nchat_ym_smileys'], $txt['nchat_smf_smileys'])),
-		array('select', 'nchat_auto_link', array($txt['nchat_disable_auto_link'], $txt['nchat_enable_auto_link'])),
 	'',
 		array('int', 'nchat_time'),
 		array('int', 'nchat_line'),
 		array('int', 'nchat_lenght'),
+		array('int', 'nchat_height'),
+		array('int', 'nchat_text_size'),
 	'',
 		array('text', 'nchat_text'),
 		array('text', 'nchat_background'),
@@ -93,18 +94,17 @@ function nchatSettings($return_config = false)
 		</operation>
 	</file>
 	<file name="$themedir/BoardIndex.template.php">
+		<!-- SMF quirk: position="before" means "insert <add> AFTER the search text"
+		     (Sources/Subs-Package.php: the position label describes where <search>
+		     lives relative to <add>, not the other way round). This anchor is
+		     identical on SMF 2.0 and 2.1 so a single op covers both versions. -->
 		<operation>
 			<search position="before"><![CDATA[function template_main()
 {]]></search>
 			<add><![CDATA[
-	global $boarddir, $boardurl;]]></add>
-		</operation>		
-		<operation>
-			<search position="after"><![CDATA[	// Show some statistics if stat info is off.]]></search>
-			<add><![CDATA[
 	//NChat by ThisMod.com
-	require_once($boarddir."/NChat/NChatBoardIndex.php");
-	]]></add>
+	global $boarddir, $boardurl;
+	require_once($boarddir . '/NChat/NChatBoardIndex.php');]]></add>
 		</operation>
 	</file>
 	<file name="$languagedir/Modifications.english.php">
@@ -115,6 +115,12 @@ function nchatSettings($return_config = false)
 $txt['nchat_name'] = 'NChat Shoutbox';
 $txt['nchat_chatbox'] = 'Chat Box';
 $txt['nchat_save'] = 'Save';
+$txt['nchat_cancel'] = 'Cancel';
+$txt['nchat_edit_link_title'] = 'Edit your message';
+$txt['nchat_delete_link_title'] = 'Delete this message';
+$txt['nchat_mute_link_title'] = 'Mute this user';
+$txt['nchat_muted_icon_title'] = 'This user is currently muted';
+$txt['nchat_link_name_prompt'] = 'Enter a name for this link:';
 $txt['nchat_clean'] = 'Clean All';
 
 $txt['nchat_blod'] = 'B';
@@ -149,20 +155,17 @@ $txt['nchat_smf_smileys'] = 'SMF Smiles';
 $txt['nchat_ym_smileys'] = 'Yahoo Smiles';
 
 $txt['nchat_add_smileys'] = 'Add Smiles';
-$txt['nchat_more_smileys'] = 'More...';
-
-$txt['nchat_auto_link'] = 'Auto-link';
-$txt['nchat_disable_auto_link'] = 'Disable Auto-link';
-$txt['nchat_enable_auto_link'] = 'Enable Auto-link';
-
-$txt['nchat_disable_consensor'] = 'Disable Censored Words';
-$txt['nchat_enable_consensor'] = 'Enable Censored Words';
 
 $txt['nchat_time'] = 'Reload time<br /><span class="smalltext">in miliseconds</span>';
 
 $txt['nchat_line'] = 'Number of message';
 
 $txt['nchat_lenght'] = 'Lenght of Message';
+$txt['nchat_height'] = 'Chat box height<br /><span class="smalltext">in pixels (100-2000, default 400)</span>';
+$txt['nchat_text_size'] = 'Default chat text size<br /><span class="smalltext">in pixels (10-32, default 14). Members can override this in their profile.</span>';
+$txt['nchat_text_size_own'] = 'NChat text size override';
+$txt['nchat_text_size_own_desc'] = 'Choose Site default to inherit the forum-wide size.';
+$txt['nchat_text_size_default'] = 'Site default';
 
 $txt['nchat_text'] = 'Default text color';
 $txt['nchat_background'] = 'Default background color';
@@ -174,9 +177,14 @@ $txt['nchat_add_mute'] = 'Mute this user (in minutes)';
 $txt['nchat_remove_mute'] = 'Remove';
 $txt['nchat_be_muted'] = '<u>%s</u> - was muted by <i>%s</i> from now to %s.';
 
+$txt['nchat_confirm_delete'] = 'Delete this message?';
+$txt['nchat_confirm_clean'] = 'To clear the whole chat box, type the confirmation number shown below:';
+$txt['nchat_session_expired'] = 'Your session timed out. Please refresh the page and log back in to continue chatting.';
+
 $txt['nchat_so_fast'] = 'Slow down! You type so fast!!';
 $txt['nchat_empty_mess'] = 'Empty message!';
-$txt['nchat_index_unavailable'] = 'The ./nchat/index.php is now unavailable! Please contact admin forum about this issue!';
+$txt['nchat_index_unavailable'] = 'Chat is temporarily unavailable';
+$txt['nchat_reconnecting'] = 'Trying to reconnect... updates will resume automatically when the connection is back.';
 //nchat permission area
 $txt['permissiongroup_simple_nchat'] = 'NChat PLay around with the chat box.';
 

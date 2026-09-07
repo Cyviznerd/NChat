@@ -5,17 +5,28 @@
 	<id>nvcnvn:NChat</id>
 	<name>NChat</name>
 	<type>modification</type>
-	<version>1.3.2</version>
+	<version>1.4.0</version>
 
 	<install for="2.0 - 2.99.99">
 		<readme parsebbc="true">readme.txt</readme>
-		<database>install.php</database>
+		<code>install-check.php</code>
 		<modification type="file">install.xml</modification>
 		<require-dir name="NChat" destination="$boarddir" />
+		<database>install.php</database>
 		<redirect url="?action=admin;area=modsettings;sa=nchat"/>
 	</install>
 
+	<!-- Ships code changes only. Data files (NChatMess.php, NChatMuteList.php) are not shipped, so history is preserved. -->
+	<upgrade for="2.0 - 2.99.99" from="1.3.2">
+		<readme parsebbc="true">readme.txt</readme>
+		<require-dir name="NChat" destination="$boarddir" />
+		<database>install.php</database>
+		<redirect url="?action=admin;area=modsettings;sa=nchat"/>
+	</upgrade>
+
 	<uninstall for="2.0 - 2.99.99">
+		<readme parsebbc="true">readme.txt</readme>
+		<database>uninstall.php</database>
 		<modification type="file" reverse="true">install.xml</modification>
 		<remove-dir name="$boarddir/NChat" />
 	</uninstall>
