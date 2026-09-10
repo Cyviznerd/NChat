@@ -35,19 +35,30 @@ function nchatMuteNote($message){
 	return 'var nchat_muted="' . nchatJsEscape($message) . '"; var nchat=null;';
 }
 
-//Every state changing request has to carry the SMF session token.
+//CSRF guard for state-changing requests. Verifies the request came from our own origin
+//using browser-set headers that a cross-site attacker cannot forge, so the check does
+//not depend on cookies, PHP sessions, or SMF's rotating session_var/session_value token
+//(which was flaky over unstable networks and mid-session cookie loss).
+//
+//AJAX mode: requires both same-origin headers AND X-Requested-With, which a plain
+//<form>/<img>/<iframe> or a no-cors fetch cannot set cross-origin without triggering
+//a CORS preflight that we never satisfy.
+//Html mode (mutelist link click): same-origin headers only, since a top-level GET
+//navigation does not carry X-Requested-With.
 function nchatCheckSession($mode = 'ajax'){
-	$var = isset($_SESSION['session_var']) ? $_SESSION['session_var'] : '';
-	$value = isset($_SESSION['session_value']) ? $_SESSION['session_value'] : '';
-
-	if($var !== '' && $value !== '' && isset($_REQUEST[$var]) && $_REQUEST[$var] === $value)
-		return;
+	if(nchatRequestIsSameOrigin()){
+		if($mode !== 'ajax')
+			return;
+		//Custom header only settable by same-origin XHR/fetch; blocks form/image CSRF that happens to share our host header via other channels.
+		$xrw = isset($_SERVER['HTTP_X_REQUESTED_WITH']) ? $_SERVER['HTTP_X_REQUESTED_WITH'] : '';
+		if(strcasecmp($xrw, 'XMLHttpRequest') === 0)
+			return;
+	}
 
 	$message = nchatTxt('nchat_session_expired', 'Your session timed out, please refresh the page and try again.');
 
 	if($mode == 'ajax'){
 		header('Content-type: text/javascript; charset=UTF-8');
-		//Dedicated signal so the client can show a banner and stop polling without wiping the visible chat log with a fake note.
 		die('var nchat_session_expired="' . nchatJsEscape($message) . '";');
 	}
 
@@ -136,10 +147,6 @@ function nchatTouchLast(){
 //read and show all mess, just do it and fast as it can!
 function NChatReader(){
 	global $modSettings, $nchatInfo, $txt, $context, $user_info;
-
-	//Every read broadcasts the current CSRF token so the client can silently self-heal after SMF rotates it in another tab.
-	if(!empty($context['session_var']) && !empty($context['session_id']))
-		echo 'var nchat_session_token="' . nchatJsEscape($context['session_var'] . '=' . $context['session_id']) . '";';
 
 	//Client compares this to its render-time nchat_own_id to spot an expired SMF session before any post is attempted.
 	echo 'var nchat_current_uid=' . (int) $user_info['id'] . ';';
@@ -555,7 +562,7 @@ function NChatRemoveMute($id_member = ''){
 	template_body_above();
 	foreach($mutes as $id => $mute){
 		$id = (int) $id;
-		$removeUrl = $nchatInfo['url'] . '?action=mutelist;u=' . $id . ';' . $context['session_var'] . '=' . $context['session_id'];
+		$removeUrl = $nchatInfo['url'] . '?action=mutelist;u=' . $id;
 		$profile = '<a href="' . $boardurl . '/index.php?action=profile;u=' . $id . '">' . htmlspecialchars($mute[1], ENT_QUOTES) . '</a>';
 
 		echo '<b>[<a href="' . $removeUrl . '">X</a>] </b>' . sprintf($txt['nchat_be_muted'], $profile, htmlspecialchars($mute[2], ENT_QUOTES), date($modSettings['nchat_time_format'], $mute[0])) . '<br />';

@@ -68,7 +68,7 @@
 - **Clicking `Install` from the upload preview when NChat is already installed now aborts with an explanation.** A new `<code>install-check.php</code>` step runs before `<modification>` and `<require-dir>`: if 1.3.2 is detected it tells you to use *Apply Upgrade* instead; if any other version is detected it tells you to uninstall first (warning that uninstall deletes `NChatMess.php`).
 - `install.php` uses `db_insert('ignore', …)` throughout, so reinstalling never duplicates settings rows.
 
-## Post-1.4.0 iterations (still on version `1.4.0`)
+## Post-1.4.0 iterations (shipped as `1.4.1`)
 
 ### Added
 - **Inline BBCode formatting.** Bold/italic/underline/colour are no longer whole-line toggles — the toolbar buttons wrap the current input selection (or drop an empty tag pair at the caret) with `[b]…[/b]`, `[i]…[/i]`, `[u]…[/u]`, `[color=#RRGGBB]…[/color]`, matching SMF's own BBCode. The client-side `nchat_apply_markers` regex expands these to safe HTML on render.
@@ -96,7 +96,13 @@
 
 ### Fixed
 - **`nchat_apply_markers` regex** now accepts inline markers anywhere in the message body, not just around the whole line. Legacy `<b>/<i>/<u>` outer wrappers on old rows are rewritten to inline markers when the user opens the row for editing.
+- **"Your session timed out" banner on legitimate sends.** Root cause: the 1.4.0 CSRF check relied on SMF's `$_SESSION['session_var']` / `session_value` pair, which is only meaningful when the browser sends the same PHP session cookie on the page render and on the subsequent AJAX POST. In practice that assumption breaks constantly — mobile networks flipping between Wi-Fi and 4G/5G, carrier NAT, Edge's sleeping-tabs waking on a different route, cookie path scoping when the forum lives at a subpath, and cross-scheme redirects can all land AJAX writes on a fresh server session with a different token. There is no client-side workaround because each POST could hit yet another new session. **The check is now cookie- and session-independent:** `nchatCheckSession()` verifies the request came from our own origin using browser-set headers instead of a rotating token. AJAX writes/edits/deletes/mutes must carry `X-Requested-With: XMLHttpRequest` (a header that a cross-site `<form>`, `<img>`, or no-cors `fetch` physically cannot forge — same-origin XHR/fetch is the only way to set it, and CORS preflight blocks the cross-origin case since the server never advertises `Access-Control-Allow-*`). Both AJAX writes and the mutelist removal link additionally require `Origin` (or, as a fallback, `Referer`) to match the current `HTTP_HOST` — modern browsers guarantee `Origin` on every state-changing request and never allow an attacker's page to override it. Result: writes/edits/deletes/mutes just work on any network with any ping, latency, or routing quirks, while the CSRF surface is at least as strong as the old token check — in fact stronger, because the origin/header pair also blocks CSRF attempts that ride on a valid session cookie (session-fixation-style attacks the old check would have accepted). Client-side token refresh, retry queue, `nchatSession` variable, and the `nchat_session_token` server broadcast are gone; the state-change AJAX URLs no longer append `session_var=session_value`. The auth-mismatch soft-fail (two consecutive `nchat_current_uid=0` reads required to lock) is retained as a genuine "you were logged out" signal.
 
 ### Security
 - **`unserialize()` hardened.** `nchatDecodeStore()` now passes `['allowed_classes' => false]` when decoding `NChatMess.php` / `NChatMuteList.php`, so any serialized object planted in the store files is refused before it can trigger a `__wakeup`/`__destruct` gadget chain. The legitimate stores only ever hold arrays of scalars, so no functional impact.
+
+### Changed
+- Version bumped `1.4.0` → `1.4.1` in `install.xml` and `package-info.xml`.
+- `package-info.xml` gains a second `<upgrade from="1.4.0">` block (code-only refresh — no `<modification>` and no `<database>` because there are no SMF file mods or DB changes between 1.4.0 and 1.4.1).
+- `install-check.php` recognises 1.4.0 as an upgrade-eligible source and steers the admin to *Apply Upgrade* rather than allowing a second *Install* over an existing 1.4.0 install.
 

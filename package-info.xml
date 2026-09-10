@@ -5,7 +5,7 @@
 	<id>nvcnvn:NChat</id>
 	<name>NChat</name>
 	<type>modification</type>
-	<version>1.4.0</version>
+	<version>1.4.1</version>
 
 	<install for="2.0 - 2.99.99">
 		<readme parsebbc="true">readme.txt</readme>
@@ -21,6 +21,13 @@
 		<readme parsebbc="true">readme.txt</readme>
 		<require-dir name="NChat" destination="$boarddir" />
 		<database>install.php</database>
+		<redirect url="?action=admin;area=modsettings;sa=nchat"/>
+	</upgrade>
+
+	<!-- 1.4.0 -> 1.4.1: code-only refresh (origin-based CSRF check, drops SMF session token dependency). No file mods, no DB changes. -->
+	<upgrade for="2.0 - 2.99.99" from="1.4.0">
+		<readme parsebbc="true">readme.txt</readme>
+		<require-dir name="NChat" destination="$boarddir" />
 		<redirect url="?action=admin;area=modsettings;sa=nchat"/>
 	</upgrade>
 

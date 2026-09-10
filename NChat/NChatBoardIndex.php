@@ -143,7 +143,6 @@ if(allowedTo('nchat_read')){
 	<script type="text/javascript">
 	var refreshtime = '.max(500, (int) $modSettings['nchat_time']).';
 	var nchatLast = '.(int) @file_get_contents($boarddir.$nchatInfo['nchatLast']).';
-	var nchatSession = "'.nchatJsEscape($context['session_var'].'='.$context['session_id']).'";
 	var nchatError = document.getElementById("nchat_error");
 	var nchatInput = document.getElementById("nchat_input");
 	var nchatOutput = document.getElementById("nchat_admin_shoutbox");
@@ -186,6 +185,8 @@ if(allowedTo('nchat_read')){
 	var nchat_session_dead = false;
 	//Epoch of the most recent successful poll response; used to suppress the offline banner from any older overlapping request whose ontimeout/onerror fires afterwards.
 	var nchat_success_at = 0;
+	//Consecutive auth mismatches; a single mid-hand-off guest reply on 4G/WiFi swap should not lock the UI.
+	var nchat_auth_flap = 0;
 
 	function nchat_shut_it_down()
 	{
@@ -220,6 +221,15 @@ if(allowedTo('nchat_read')){
 		if(!nchat_editing)
 			nchat_ajax("", false);
 		reload = setTimeout(nchat_reload, refreshtime);
+	}
+
+	//Every write/edit/delete/clean/mute goes through here so the reload timer is reset consistently after any state change.
+	function nchat_send_change(params)
+	{
+		if(nchat_session_dead) return;
+		nchat_ajax(params, true);
+		clearTimeout(reload);
+		nchat_reload();
 	}
 
 	function nchat_ajax(param, load)
@@ -265,7 +275,6 @@ if(allowedTo('nchat_read')){
 						var nchat_muted = null;
 						var nchat_session_expired = null;
 						var nchat_auth_expired = null;
-						var nchat_session_token = null;
 						var nchat_current_uid = null;
 						var nchat;
 						try {
@@ -274,19 +283,19 @@ if(allowedTo('nchat_read')){
 							nchat_show_offline("bad response");
 							return;
 						}
-						//Silently refresh the CSRF token when SMF rotated it (e.g. another tab logged in).
-						if(nchat_session_token){
-							nchatSession = nchat_session_token;
-						}
 						if(nchat_session_expired){
 							nchat_stop_session(typeof nchat_session_expired === "string" ? nchat_session_expired : "");
 							return;
 						}
 						//Auth mismatch: page was rendered logged-in but the request now runs as guest or a different user.
 						if(nchat_auth_expired || (nchat_own_id > 0 && nchat_current_uid !== null && nchat_current_uid !== nchat_own_id)){
+							//One transient guest reply during a network hand-off (Wi-Fi <-> 4G) is not enough to lock; require it twice in a row.
+							nchat_auth_flap++;
+							if(nchat_auth_flap < 2) return;
 							nchat_stop_session("");
 							return;
 						}
+						nchat_auth_flap = 0;
 						if(nchat_muted){
 							nchat_apply_mute(nchat_muted);
 						} else if(nchat_is_muted){
@@ -330,10 +339,13 @@ if(allowedTo('nchat_read')){
 		if(load){
 			xmlhttp.open("POST", nchatUrl, true);
 			xmlhttp.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+			//X-Requested-With is our CSRF proof: only same-origin XHR/fetch can set custom headers, so a cross-site form/img cannot forge this.
+			xmlhttp.setRequestHeader("X-Requested-With", "XMLHttpRequest");
 			xmlhttp.send(param);
 		}else{
 			xmlhttp.open("GET", nchatUrl + (nchatUrl.indexOf("?") === -1 ? "?" : "&") + "_=" + Date.now(), true);
 			xmlhttp.setRequestHeader("Cache-Control","no-cache");
+			xmlhttp.setRequestHeader("X-Requested-With", "XMLHttpRequest");
 			xmlhttp.send();
 		}
 	}
@@ -525,7 +537,7 @@ if(allowedTo('nchat_read')){
 			}
 		}
 		nchat_open_confirm(previewHtml, nchat_txt_confirm_delete, null, function(){
-			nchat_ajax("nchat=clean&nchat_mess=" + id + "&" + nchatSession, true);
+			nchat_send_change("nchat=clean&nchat_mess=" + id);
 		});
 		return false;
 	}
@@ -534,7 +546,7 @@ if(allowedTo('nchat_read')){
 		var num = Math.floor(1000 + Math.random() * 9000);
 		var promptHtml = nchat_txt_confirm_clean + "<div style=\"font-size:1.6em;font-weight:bold;letter-spacing:0.15em;text-align:center;margin:8px 0;\">" + num + "</div>";
 		nchat_open_confirm("", promptHtml, num, function(){
-			nchat_ajax("nchat=clean&" + nchatSession, true);
+			nchat_send_change("nchat=clean");
 		});
 		return false;
 	}
@@ -543,7 +555,7 @@ if(allowedTo('nchat_read')){
 		var a = prompt(nchat_txt_add_mute, 5);
 
 		if(a != null && a != "")
-			nchat_ajax("nchat=setmute&nchat_mess=" + encodeURIComponent(user_id) + "&nchat_mute=" + encodeURIComponent(a) + "&" + nchatSession, true);
+			nchat_send_change("nchat=setmute&nchat_mess=" + encodeURIComponent(user_id) + "&nchat_mute=" + encodeURIComponent(a));
 
 		return false;
 	}
@@ -658,9 +670,7 @@ if(allowedTo('nchat_read')){
 		if(nchat_offline_now()) return false;
 		var idx = nchat_edit_state.index;
 		nchat_edit_teardown();
-		nchat_ajax("nchat=edit&nchat_id=" + encodeURIComponent(idx) + "&nchat_mess=" + encodeURIComponent(newVal) + "&" + nchatSession, true);
-		clearTimeout(reload);
-		nchat_reload();
+		nchat_send_change("nchat=edit&nchat_id=" + encodeURIComponent(idx) + "&nchat_mess=" + encodeURIComponent(newVal));
 		return false;
 	}
 	function nchat_toggle_smiles()
@@ -701,9 +711,7 @@ if(allowedTo('nchat_read')){
 			//Do not consume the typed text while offline; the user keeps the message and can hit Save again once the banner clears.
 			if(nchat_offline_now()) return;
 			if((d.getTime() - last_chat) >= limit_time*1000){
-				nchat_ajax("nchat=write&nchat_mess=" + encodeURIComponent(nchatInput.value) + "&" + nchatSession, true);
-				clearTimeout(reload);
-				nchat_reload();
+				nchat_send_change("nchat=write&nchat_mess=" + encodeURIComponent(nchatInput.value));
 				nchatInput.value = "";
 				last_chat = d.getTime();
 			}else{

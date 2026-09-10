@@ -23,8 +23,10 @@ if($installedVersion === null)
 
 if($installedVersion === '1.3.2')
 	$msg = 'NChat 1.3.2 is already installed. The <strong>Install</strong> button here would re-apply the SMF file modifications on top of themselves. To upgrade in place and keep your chat history, go back to <em>Admin &rarr; Package Manager &rarr; Browse Packages</em> and click <strong>Apply Upgrade</strong> next to this package instead.';
+elseif($installedVersion === '1.4.0')
+	$msg = 'NChat 1.4.0 is already installed. Use <strong>Apply Upgrade</strong> from <em>Admin &rarr; Package Manager &rarr; Browse Packages</em> to refresh the code files in place (no file mods, no data changes). Running <strong>Install</strong> here would re-apply the SMF file modifications on top of themselves.';
 else
-	$msg = 'NChat ' . htmlspecialchars($installedVersion) . ' is already installed. This installer only supports fresh installs or upgrades from 1.3.2. Please uninstall the existing NChat package first. <strong>Warning:</strong> the current uninstaller deletes <code>NChat/NChatMess.php</code> and your chat history.';
+	$msg = 'NChat ' . htmlspecialchars($installedVersion) . ' is already installed. This installer only supports fresh installs or upgrades from 1.3.2 / 1.4.0. Please uninstall the existing NChat package first. <strong>Warning:</strong> the current uninstaller deletes <code>NChat/NChatMess.php</code> and your chat history.';
 
 if(function_exists('fatal_error'))
 	fatal_error($msg, false);
